@@ -31,10 +31,43 @@ function App() {
         }
     }, [apiUrl]);
 
-    // Função para chamar a próxima senha
+    // Função para adicionar senha na fila preferencial
+    const addPreferentialPassword = useCallback(async () => {
+        try {
+            await axios.post(`${apiUrl}/add-preferential`);
+            fetchQueues(); // Atualiza as filas
+        } catch (error) {
+            console.error("Erro ao adicionar senha preferencial:", error);
+        }
+    }, [apiUrl, fetchQueues]);
+
+    // Função para adicionar senha na fila geral
+    const addGeneralPassword = useCallback(async () => {
+        try {
+            await axios.post(`${apiUrl}/add-general`);
+            fetchQueues(); // Atualiza as filas
+        } catch (error) {
+            console.error("Erro ao adicionar senha geral:", error);
+        }
+    }, [apiUrl, fetchQueues]);
+
+    // Função para chamar a próxima senha balanceada
     const callNextPassword = useCallback(async () => {
         try {
-            const response = await axios.get(`${apiUrl}/next`);
+            const preferentialCount = preferentialQueue.length;
+            const generalCount = generalQueue.length;
+
+            let endpoint = "";
+            if (preferentialCount > 0 && (preferentialCount > generalCount || generalCount === 0)) {
+                endpoint = `${apiUrl}/preferential`;
+            } else if (generalCount > 0) {
+                endpoint = `${apiUrl}/general`;
+            } else {
+                console.log("Nenhuma senha disponível.");
+                return;
+            }
+
+            const response = await axios.get(endpoint);
             const { password } = response.data;
 
             setFullScreenPassword(password);
@@ -48,55 +81,7 @@ function App() {
         } catch (error) {
             console.error("Erro ao chamar a próxima senha:", error);
         }
-    }, [apiUrl, fetchQueues]);
-
-    // Função para chamar uma senha preferencial
-    const callPreferentialPassword = useCallback(async () => {
-        try {
-            const response = await axios.get(`${apiUrl}/preferential`);
-            const { password } = response.data;
-
-            setFullScreenPassword(password);
-            setIsFullScreen(true);
-
-            setTimeout(() => {
-                setCurrentPassword(password);
-                fetchQueues(); // Atualiza as filas após chamar a senha
-                setIsFullScreen(false);
-            }, 3000);
-        } catch (error) {
-            console.error("Erro ao chamar a senha preferencial:", error);
-        }
-    }, [apiUrl, fetchQueues]);
-
-    // Função para chamar uma senha comum
-    const callGeneralPassword = useCallback(async () => {
-        try {
-            const response = await axios.get(`${apiUrl}/general`);
-            const { password } = response.data;
-
-            setFullScreenPassword(password);
-            setIsFullScreen(true);
-
-            setTimeout(() => {
-                setCurrentPassword(password);
-                fetchQueues(); // Atualiza as filas após chamar a senha
-                setIsFullScreen(false);
-            }, 3000);
-        } catch (error) {
-            console.error("Erro ao chamar a senha comum:", error);
-        }
-    }, [apiUrl, fetchQueues]);
-
-    // Função para resetar as filas no backend
-    const resetData = async () => {
-        try {
-            await axios.post(`${apiUrl}/reset`);
-            fetchQueues(); // Atualiza as filas após o reset
-        } catch (error) {
-            console.error("Erro ao resetar os dados:", error);
-        }
-    };
+    }, [apiUrl, fetchQueues, generalQueue, preferentialQueue]);
 
     // UseEffect para buscar o estado inicial das filas
     useEffect(() => {
@@ -106,12 +91,12 @@ function App() {
     // Detecta pressionamento de teclas
     useEffect(() => {
         const handleKeyPress = (event) => {
-            if (event.key === "c") {
-                callNextPassword();
-            } else if (event.key === "p") {
-                callPreferentialPassword();
+            if (event.key === "p") {
+                addPreferentialPassword();
             } else if (event.key === "g") {
-                callGeneralPassword();
+                addGeneralPassword();
+            } else if (event.key === "c") {
+                callNextPassword();
             }
         };
 
@@ -119,7 +104,7 @@ function App() {
         return () => {
             window.removeEventListener("keydown", handleKeyPress);
         };
-    }, [callNextPassword, callPreferentialPassword, callGeneralPassword]);
+    }, [addPreferentialPassword, addGeneralPassword, callNextPassword]);
 
     return (
         <>
