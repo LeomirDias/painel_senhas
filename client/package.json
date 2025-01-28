@@ -4,9 +4,8 @@
   "private": true,
   "dependencies": {
     "axios": "^1.7.9",
-    "cra-template": "1.2.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^4.2.4"
   },
@@ -35,6 +34,13 @@
     ]
   },
   "devDependencies": {
+    "@babel/core": "^7.21.11",
+    "@babel/preset-env": "^7.21.11",
+    "@babel/preset-react": "^7.21.5",
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
+  },
+  "babel": {
+    "presets": ["@babel/preset-env", "@babel/preset-react"],
+    "plugins": ["@babel/plugin-proposal-private-property-in-object"]
   }
 }
