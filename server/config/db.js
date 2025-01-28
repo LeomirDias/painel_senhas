@@ -1,4 +1,6 @@
-require("dotenv").config(); // Carrega o .env
+require("dotenv").config({ path: "../.env" });
+
+console.log("Configurações carregadas do .env:", process.env);
 
 const mariadb = require("mariadb");
 
