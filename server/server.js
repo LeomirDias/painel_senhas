@@ -11,6 +11,7 @@ const port = process.env.PORT || 3001;
 // Middlewares
 app.use(express.json()); // Substitui bodyParser.json()
 app.use(cors());
+app.use(express.urlencoded({ extended: true }));
 
 // Rotas
 app.use("/api", queueRoutes);
