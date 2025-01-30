@@ -1,71 +1,31 @@
 require("dotenv").config(); // Carrega as variáveis de ambiente do .env
 
 const express = require("express");
+const app = express();
 const cors = require("cors");
 const os = require("os");
+const queueRoutes = require("./routes/queueRoutes");
 
-const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3001; // Define a porta que a API rodará
 
-// Variáveis globais para as filas
-let generalQueue = [];
-let preferentialQueue = [];
-let currentPassword = null;
+const allowedOrigins = ["http://localhost:3000", "http://10.0.1.16:3001"]; // Permite a conexão em determinadas portas
 
 // Middlewares
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
+    credentials: true
+}));
 app.use(express.urlencoded({ extended: true }));
 
-// Rotas
-
-// Adicionar senha preferencial
-app.post("/api/add-preferential", (req, res) => {
-    const nextPassword = preferentialQueue.length + 1;
-    preferentialQueue.push(nextPassword);
-    res.status(200).json({ message: "Senha preferencial adicionada com sucesso.", nextPassword: `P${nextPassword}` });
-});
-
-// Adicionar senha geral
-app.post("/api/add-general", (req, res) => {
-    const nextPassword = generalQueue.length + 1;
-    generalQueue.push(nextPassword);
-    res.status(200).json({ message: "Senha geral adicionada com sucesso.", nextPassword: `G${nextPassword}` });
-});
-
-// Chamar próxima senha balanceada
-app.get("/api/next", (req, res) => {
-    if (
-        preferentialQueue.length > 0 &&
-        (preferentialQueue.length > generalQueue.length || generalQueue.length === 0)
-    ) {
-        const password = `P${preferentialQueue.shift()}`;
-        currentPassword = password;
-        return res.status(200).json({ password });
-    } else if (generalQueue.length > 0) {
-        const password = `G${generalQueue.shift()}`;
-        currentPassword = password;
-        return res.status(200).json({ password });
-    }
-    res.status(400).json({ message: "Nenhuma senha disponível." });
-});
-
-// Buscar o estado atual das filas
-app.get("/api/status", (req, res) => {
-    res.status(200).json({
-        generalQueue,
-        preferentialQueue,
-        currentPassword: currentPassword || "Nenhuma senha chamada."
-    });
-});
-
-// Resetar as filas
-app.post("/api/reset", (req, res) => {
-    generalQueue = [];
-    preferentialQueue = [];
-    currentPassword = null;
-    res.status(200).json({ message: "Dados resetados com sucesso." });
-});
+// Usando as rotas
+app.use("/api", queueRoutes);
 
 // Middleware para rotas não encontradas
 app.use((req, res) => {
@@ -84,7 +44,7 @@ const localIP = Object.values(os.networkInterfaces())
     .find((iface) => iface.family === "IPv4" && !iface.internal)?.address;
 
 // Inicia o servidor
-app.listen(port, () => {
+app.listen(3001, "0.0.0.0", () => {
     console.log(`Servidor rodando em:`);
     console.log(`- Local: http://localhost:${port}`);
     console.log(`- Rede: http://${localIP || "IP não detectado"}:${port}`);

@@ -7,88 +7,84 @@ function App() {
     const [generalQueue, setGeneralQueue] = useState([]);
     const [preferentialQueue, setPreferentialQueue] = useState([]);
     const [currentPassword, setCurrentPassword] = useState("000");
-    const [nextGeneralPassword, setNextGeneralPassword] = useState("G000");
-    const [nextPreferentialPassword, setNextPreferentialPassword] = useState("P000");
-    const [isFullScreen, setIsFullScreen] = useState(false);
-    const [fullScreenPassword, setFullScreenPassword] = useState("");
+    const [errorMessage, setErrorMessage] = useState(null);
 
-    const apiUrl = "http://localhost:3001/api"; // Ajuste conforme necessário
+    const apiUrl = process.env.REACT_APP_API_URL;
 
-    // Função para buscar o estado das filas do servidor
+    // Buscar status das filas e senha atual
     const fetchQueues = useCallback(async () => {
         try {
             const response = await axios.get(`${apiUrl}/status`);
             const { generalQueue, preferentialQueue, currentPassword } = response.data;
 
-            setGeneralQueue(generalQueue);
-            setPreferentialQueue(preferentialQueue);
-            setCurrentPassword(currentPassword);
-
-            setNextGeneralPassword(generalQueue.length > 0 ? `G${generalQueue[0]}` : "G000");
-            setNextPreferentialPassword(preferentialQueue.length > 0 ? `P${preferentialQueue[0]}` : "P000");
+            setGeneralQueue(generalQueue || []);
+            setPreferentialQueue(preferentialQueue || []);
+            setCurrentPassword(currentPassword || "000");
         } catch (error) {
             console.error("Erro ao buscar o estado das filas:", error);
         }
     }, [apiUrl]);
 
-    // Função para adicionar senha na fila preferencial
+    // Adicionar senha à fila preferencial
     const addPreferentialPassword = useCallback(async () => {
         try {
-            await axios.post(`${apiUrl}/add-preferential`);
-            fetchQueues(); // Atualiza as filas
+            const response = await axios.post(`${apiUrl}/add-preferential`);
+            if (response.status === 200) {
+                await fetchQueues();
+            }
         } catch (error) {
             console.error("Erro ao adicionar senha preferencial:", error);
         }
     }, [apiUrl, fetchQueues]);
 
-    // Função para adicionar senha na fila geral
+    // Adicionar senha à fila geral
     const addGeneralPassword = useCallback(async () => {
         try {
-            await axios.post(`${apiUrl}/add-general`);
-            fetchQueues(); // Atualiza as filas
+            const response = await axios.post(`${apiUrl}/add-general`);
+            if (response.status === 200) {
+                await fetchQueues();
+            }
         } catch (error) {
             console.error("Erro ao adicionar senha geral:", error);
         }
     }, [apiUrl, fetchQueues]);
 
-    // Função para chamar a próxima senha balanceada
-    const callNextPassword = useCallback(async () => {
+    // Chamar a próxima senha
+    const callNextPassword = async () => {
         try {
-            const preferentialCount = preferentialQueue.length;
-            const generalCount = generalQueue.length;
+            const response = await axios.get(`${apiUrl}/next`);
+            const data = response.data;
 
-            let endpoint = "";
-            if (preferentialCount > 0 && (preferentialCount > generalCount || generalCount === 0)) {
-                endpoint = `${apiUrl}/preferential`;
-            } else if (generalCount > 0) {
-                endpoint = `${apiUrl}/general`;
+            if (response.status === 200) {
+                setCurrentPassword(data.password);
+                setErrorMessage(null);
+                await fetchQueues(); // Atualiza corretamente as filas
             } else {
-                console.log("Nenhuma senha disponível.");
-                return;
+                setErrorMessage(data.error);
+                setTimeout(() => setErrorMessage(null), 5000);
             }
-
-            const response = await axios.get(endpoint);
-            const { password } = response.data;
-
-            setFullScreenPassword(password);
-            setIsFullScreen(true);
-
-            setTimeout(() => {
-                setCurrentPassword(password);
-                fetchQueues(); // Atualiza as filas após chamar a senha
-                setIsFullScreen(false);
-            }, 3000);
         } catch (error) {
-            console.error("Erro ao chamar a próxima senha:", error);
+            setErrorMessage("Nenhuma senha disponível");
+            setTimeout(() => setErrorMessage(null), 5000);
         }
-    }, [apiUrl, fetchQueues, generalQueue, preferentialQueue]);
+    };
 
-    // UseEffect para buscar o estado inicial das filas
-    useEffect(() => {
-        fetchQueues();
-    }, [fetchQueues]);
+    // Resetar as filas
+    const resetQueues = useCallback(async () => {
+        try {
+            const response = await axios.post(`${apiUrl}/reset`);
+            if (response.status === 200) {
+                setGeneralQueue([]);
+                setPreferentialQueue([]);
+                setCurrentPassword("000");
+            }
+            await fetchQueues();
+        } catch (error) {
+            console.error("Erro ao resetar as filas:", error);
+        }
+    }, [apiUrl, fetchQueues]);
 
-    // Detecta pressionamento de teclas
+    // Eventos de teclado para chamar funções
     useEffect(() => {
         const handleKeyPress = (event) => {
             if (event.key === "p") {
@@ -97,6 +93,8 @@ function App() {
                 addGeneralPassword();
             } else if (event.key === "c") {
                 callNextPassword();
+            } else if (event.key === "r") {
+                resetQueues();
             }
         };
 
@@ -104,33 +102,66 @@ function App() {
         return () => {
             window.removeEventListener("keydown", handleKeyPress);
         };
-    }, [addPreferentialPassword, addGeneralPassword, callNextPassword]);
+    }, [addPreferentialPassword, addGeneralPassword, callNextPassword, resetQueues]);
+
+    // Buscar status no início
+    useEffect(() => {
+        fetchQueues();
+    }, [fetchQueues]);
+
+    // Função para obter a próxima senha correta
+    const getNextPassword = (queue) => {
+        if (queue.length > 1) {
+            return queue[1]; // Próxima senha real
+        } else {
+            return "000"; // Se não houver próxima senha, exibe 000
+        }
+    };
 
     return (
-        <>
-            <main id="sidebar">
-                <div id="container-senhas">
-                    <img src={logo} alt="Logo Reis" id='sidebar__logo' />
-                    <div id="container-current">
-                        <div className="label">SUA VEZ!</div>
-                        <div className="password" id="current-password">{currentPassword}</div>
+        <main id="sidebar">
+            <div id="container-senhas">
+                <img src={logo} alt="Logo Reis" id='sidebar__logo' />
+                <div id="container-current">
+                    <div className="label">SUA VEZ!</div>
+                    <div className="password" id="current-password">{currentPassword}</div>
+                </div>
+            </div>
+
+            <div id="bottom-section">
+                <h1>PRÓXIMAS SENHAS:</h1>
+                <div className="bottom-containers" id="container-general">
+                    <div className="bottom-label">GERAL -</div>
+                    <div className="bottom-password">
+                        {Array.isArray(generalQueue) && generalQueue.length > 0 ? generalQueue[0] : "000"}
                     </div>
                 </div>
 
-                <div id="bottom-section">
-                    <h1>PRÓXIMAS SENHAS:</h1>
-                    <div className="bottom-containers" id="container-general">
-                        <div className="bottom-label">GERAL -</div>
-                        <div className="bottom-password" id="next-general">{nextGeneralPassword}</div>
-                    </div>
-
-                    <div className="bottom-containers" id="container-preferential">
-                        <div className="bottom-label">PREFERENCIAL -</div>
-                        <div className="bottom-password" id="next-preferential">{nextPreferentialPassword}</div>
+                <div className="bottom-containers" id="container-preferential">
+                    <div className="bottom-label">PREFERENCIAL -</div>
+                    <div className="bottom-password">
+                    {Array.isArray(preferentialQueue) && preferentialQueue.length > 0 ? preferentialQueue[0] : "000"}
                     </div>
                 </div>
-            </main>
-        </>
+            </div>
+
+            {errorMessage && (
+                <div style={{
+                    position: "fixed",
+                    bottom: "20px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    background: "red",
+                    color: "white",
+                    padding: "10px",
+                    borderRadius: "5px",
+                    fontSize: "16px",
+                    fontWeight: "bold"
+                }}>
+                    {errorMessage}
+                </div>
+            )}
+        </main>
     );
 }
 
